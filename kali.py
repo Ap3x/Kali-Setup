@@ -11,10 +11,8 @@ import re
 ### SET THESE VARIABLES!
 YOUR_NAME = "Anonymous"
 YOUR_EMAIL = "anonymous@domain.com"
-TIMEZONE = 'America/Chicago'
+TIMEZONE = 'America/Kentucky/Louisville'
 HIDPI_MONITOR = False       # Set this True if you have a 4k monitor, False otherwise
-COBALTSTRIKE_LICENSE = ''   # Leave blank if you don't have one
-INSTALL_NEW_DE = True       # Set this to false if you want to stick with gnome
 BLEEDING_EDGE_REPOS = True  # Set this to false if you dont want bleeding edge updates
 
 
@@ -38,7 +36,7 @@ def main():
 
 
 def show_header():
-	global TOTAL_PARTS, CURRENT_STAGE, YOUR_NAME, YOUR_EMAIL, TIMEZONE, COBALTSTRIKE_LICENSE, BLEEDING_EDGE_REPOS
+	global TOTAL_PARTS, CURRENT_STAGE, YOUR_NAME, YOUR_EMAIL, TIMEZONE, BLEEDING_EDGE_REPOS
 	print("Starting Kali configuration script!")
 	print("       By Chris King")
 	print("")
@@ -49,8 +47,6 @@ def show_header():
 	print("Your email:           " + YOUR_EMAIL)
 	print("  Timezone:           " + TIMEZONE)
 	print("4k Monitor?           " + ("Yes" if HIDPI_MONITOR else "No"))
-	print("CS License:           " + COBALTSTRIKE_LICENSE)
-	print("Install XFCE?         " + ("Yes" if INSTALL_NEW_DE else "No"))
 	print("Bleeding edge repos?  " + ("Yes" if BLEEDING_EDGE_REPOS else "No"))
 	print("")
 	print(Fore.YELLOW + "If the above is not correct, CTRL+C right now and edit lines 11-18 of this script!" + Fore.RESET)
@@ -73,7 +69,7 @@ def check_environment():
 		print_success("We are root!")
 
 def launch_configuration():
-	global TOTAL_PARTS, CURRENT_STAGE, YOUR_NAME, YOUR_EMAIL, TIMEZONE, COBALTSTRIKE_LICENSE, BLEEDING_EDGE_REPOS, HIDPI_MONITOR
+	global TOTAL_PARTS, CURRENT_STAGE, YOUR_NAME, YOUR_EMAIL, TIMEZONE, BLEEDING_EDGE_REPOS, HIDPI_MONITOR
 
 	## Set timezone
 	do_action("Setting timezone")
@@ -238,22 +234,6 @@ sleep 2s
 	print_success("Done")
 
 
-	if INSTALL_NEW_DE:
-		## Install xfce4
-		do_action("Installing XFCE4")
-		run_command('export DEBIAN_FRONTEND=noninteractive; apt -y -qq install curl xfce4 xfce4-mount-plugin xfce4-notifyd xfce4-places-plugin xfce4-power-manager', True, True)
-		if in_vm == "":
-			run_command('apt -y -qq install xfce4-battery-plugin')
-		print_success("Done")
-
-
-		## Configure xfce4	
-		do_action("Configuring XFCE4")
-		# This has so many actions I put it in its own function
-		configure_xfce()
-		print_success("Done")
-
-
 	## Configure terminal
 	do_action("Configuring the terminal")
 	run_command('apt -y -qq install gconf2')
@@ -330,6 +310,7 @@ alias fgrep="fgrep --color=auto"
 
 ## tmux
 alias tmuxr="tmux attach || tmux new"
+alias takeover="tmux detach -a"
 
 ## axel
 alias axel="axel -a"
@@ -901,44 +882,6 @@ setg LPORT 443
 	install_githubs()
 	print_success("Done")
 
-
-	## Installing Cobalt Strike
-	do_action("Installing Cobalt Strike into /opt (if license is provided)")
-	if COBALTSTRIKE_LICENSE == "":
-		print_success("No cobalt strike license provided.  Skipping!")
-	else:
-		cs_link = run_command_output("curl -s --data 'dlkey={0}' 'https://cobaltstrike.com/download' | grep -m 1 -oP '(downloads/[a-z0-9]{{32}}/cobaltstrike-trial)'".format(COBALTSTRIKE_LICENSE)).decode("ascii").rstrip()
-		if cs_link == "":
-			print_error("Cobalt strike license is invalid! Skipping...")
-			COBALTSTRIKE_LICENSE = ""
-		else:
-			print_success("License is valid! Downloading package...")
-			file_download("https://cobaltstrike.com/{0}.tgz".format(cs_link), "/root/cobaltstrike.tgz")
-			run_command("tar -zxf /root/cobaltstrike.tgz -C /opt/")
-			run_command("rm /root/cobaltstrike.tgz")
-			file_write("/root/.cobaltstrike.license", COBALTSTRIKE_LICENSE)
-			print_success("Installed....now updating from the trial version")
-			run_command("cd /opt/cobaltstrike/; ./update")
-			print_success("Done")
-
-	## Installing Cobalt Strike scripts
-	do_action("Installing Cobalt Strike scripts")
-	run_command("mkdir -p /opt/cs_scripts")
-	cs_script_repos = [
-		'killswitch-GUI/CobaltStrike-ToolKit',
-		'kussic/CS-KickassBot',
-		'ZonkSec/persistence-aggressor-script',
-		'harleyQu1nn/AggressorScripts',
-		'ramen0x3f/AggressorScripts',
-	]
-	for repo in cs_script_repos:
-		repo_name = repo.replace('/','_').lower() + '-git'
-		run_command("git clone -q -b master https://github.com/{0}.git /opt/cs_scripts/{1}".format(repo, repo_name))
-		run_command("cd /opt/cs_scripts/{0}/; git pull -q".format(repo_name))
-	if COBALTSTRIKE_LICENSE != "":
-		run_command("ln -sf /opt/cs_scripts/ /opt/cobaltstrike/scripts")
-	print_success("Done")
-
 	## Writing update script
 	do_action("Writing GitHub update script")
 	content = """#!/bin/bash
@@ -962,12 +905,52 @@ done
 	run_command('chmod +x /opt/UpdateAll.sh')
 	print_success('Done')
 
-	## Remove gnome shell if installed xfce4 - THIS MUST BE LAST
-	if INSTALL_NEW_DE:
-		## Removing gnome shell
-		do_action("Removing Gnome")
-		run_command('apt -y -qq remove gnome-shell')
-		print_success("Done")
+	## Writing update script
+	do_action("Writing Tmux Config")
+	contents="""
+#Set Colors
+set -g default-terminal "screen-256color" # colors!
+#set-option -g default-shell "/bin/bash"
+#set-option -g default-command 'source ~/.bashrc'
+
+
+#Remap prefix to screens
+set -g prefix C-a
+bind C-a send-prefix
+unbind C-b
+
+#Quality of life stuff
+set -g history-limit 10000
+set -g allow-rename on
+
+##Join Windows
+bind-key j command-prompt -p "join pane from:" "join-pane -s '%%'"
+bind-key s command-prompt -p "send pane to:" "join-pane -t '%%'"
+
+# Search Mode VI (default is emac)
+set-window-option  -g mode-keys vi
+run-shell  /opt/tmux-logging/logging.tmux
+
+#Set Colors
+#new -n WindowName bash --login
+#set -g default-terminal "screen-256color"
+#set -g default-terminal "tmux-256color"
+
+#Tmux buffer to system buffer (clipboard)
+#bind -t vi-copy y copy-pipe "xclip -sel clip -i"
+
+
+#Copy with mouse drag
+set -g mouse on
+
+# For binding 'y' to copy and exiting selection mode
+#bind-key -T copy-mode-vi y send-keys -X copy-pipe-and-cancel 'xclip -sel clip -i'
+
+# For binding 'Enter' to copy and not leave selection mode
+#bind-key -T copy-mode-vi Enter send-keys -X copy-pipe 'xclip -sel clip -i' '\;'  send -X clear-selection
+"""
+	file_write('/root/.tmux.conf', contents)
+	print_success('Done')
 
 
 def do_action(description):
@@ -1037,263 +1020,7 @@ def file_backup(filename):
 def file_download(location, destination):
 	os.system("wget -O '{0}' '{1}' > /dev/null 2>&1".format(destination, location))
 
-
-
 ######### HELPER FUNCTIONS
-
-def configure_xfce():
-	global HIDPI_MONITOR
-	## install axiomd theme
-	run_command("mkdir -p /root/.themes")
-	file_download('https://www.dropbox.com/s/6b3ccbnbbvg3ij4/90145-axiom.tar.gz?dl=1', '/root/axiom.tar.gz')
-	run_command('cd /root/; tar xfs /root/axiom.tar.gz')
-	run_command('mv /root/axiom /root/axiomd /root/.themes')
-	run_command('rm /root/axiom.tar.gz')
-	run_command('rm -r /root/axiom /root/axiomd')
-	run_command("mkdir -p ~/.config/xfce4/panel/launcher-{2,4,5,6,7,8,9}/")
-	run_command("mkdir -p ~/.config/xfce4/xfconf/xfce-perchannel-xml/")
-	## keybindings
-	contents = """<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xfce4-keyboard-shortcuts" version="1.0">
-  <property name="commands" type="empty">
-    <property name="custom" type="empty">
-      <property name="XF86Display" type="string" value="xfce4-display-settings --minimal"/>
-      <property name="&lt;Alt&gt;F2" type="string" value="xfrun4"/>
-      <property name="&lt;Primary&gt;space" type="string" value="xfce4-appfinder"/>
-      <property name="&lt;Primary&gt;&lt;Alt&gt;t" type="string" value="/usr/bin/exo-open --launch TerminalEmulator"/>
-      <property name="&lt;Primary&gt;&lt;Alt&gt;Delete" type="string" value="xflock4"/>
-      <property name="&lt;Primary&gt;Escape" type="string" value="xfdesktop --menu"/>
-      <property name="&lt;Super&gt;p" type="string" value="xfce4-display-settings --minimal"/>
-      <property name="override" type="bool" value="true"/>
-    </property>
-  </property>
-  <property name="xfwm4" type="empty">
-    <property name="custom" type="empty">
-      <property name="&lt;Alt&gt;&lt;Control&gt;End" type="string" value="move_window_next_workspace_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;Home" type="string" value="move_window_prev_workspace_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;KP_1" type="string" value="move_window_workspace_1_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;KP_2" type="string" value="move_window_workspace_2_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;KP_3" type="string" value="move_window_workspace_3_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;KP_4" type="string" value="move_window_workspace_4_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;KP_5" type="string" value="move_window_workspace_5_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;KP_6" type="string" value="move_window_workspace_6_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;KP_7" type="string" value="move_window_workspace_7_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;KP_8" type="string" value="move_window_workspace_8_key"/>
-      <property name="&lt;Alt&gt;&lt;Control&gt;KP_9" type="string" value="move_window_workspace_9_key"/>
-      <property name="&lt;Alt&gt;&lt;Shift&gt;Tab" type="string" value="cycle_reverse_windows_key"/>
-      <property name="&lt;Alt&gt;Delete" type="string" value="del_workspace_key"/>
-      <property name="&lt;Alt&gt;F10" type="string" value="maximize_window_key"/>
-      <property name="&lt;Alt&gt;F11" type="string" value="fullscreen_key"/>
-      <property name="&lt;Alt&gt;F12" type="string" value="above_key"/>
-      <property name="&lt;Alt&gt;F4" type="string" value="close_window_key"/>
-      <property name="&lt;Alt&gt;F6" type="string" value="stick_window_key"/>
-      <property name="&lt;Alt&gt;F7" type="string" value="move_window_key"/>
-      <property name="&lt;Alt&gt;F8" type="string" value="resize_window_key"/>
-      <property name="&lt;Alt&gt;F9" type="string" value="hide_window_key"/>
-      <property name="&lt;Alt&gt;Insert" type="string" value="add_workspace_key"/>
-      <property name="&lt;Alt&gt;space" type="string" value="popup_menu_key"/>
-      <property name="&lt;Alt&gt;Tab" type="string" value="cycle_windows_key"/>
-      <property name="&lt;Control&gt;&lt;Alt&gt;d" type="string" value="show_desktop_key"/>
-      <property name="&lt;Control&gt;&lt;Alt&gt;Down" type="string" value="down_workspace_key"/>
-      <property name="&lt;Control&gt;&lt;Alt&gt;Left" type="string" value="left_workspace_key"/>
-      <property name="&lt;Control&gt;&lt;Alt&gt;Right" type="string" value="right_workspace_key"/>
-      <property name="&lt;Control&gt;&lt;Alt&gt;Up" type="string" value="up_workspace_key"/>
-      <property name="&lt;Control&gt;&lt;Shift&gt;&lt;Alt&gt;Left" type="string" value="move_window_left_key"/>
-      <property name="&lt;Control&gt;&lt;Shift&gt;&lt;Alt&gt;Right" type="string" value="move_window_right_key"/>
-      <property name="&lt;Control&gt;&lt;Shift&gt;&lt;Alt&gt;Up" type="string" value="move_window_up_key"/>
-      <property name="&lt;Control&gt;F1" type="string" value="workspace_1_key"/>
-      <property name="&lt;Control&gt;F10" type="string" value="workspace_10_key"/>
-      <property name="&lt;Control&gt;F11" type="string" value="workspace_11_key"/>
-      <property name="&lt;Control&gt;F12" type="string" value="workspace_12_key"/>
-      <property name="&lt;Control&gt;F2" type="string" value="workspace_2_key"/>
-      <property name="&lt;Control&gt;F3" type="string" value="workspace_3_key"/>
-      <property name="&lt;Control&gt;F4" type="string" value="workspace_4_key"/>
-      <property name="&lt;Control&gt;F5" type="string" value="workspace_5_key"/>
-      <property name="&lt;Control&gt;F6" type="string" value="workspace_6_key"/>
-      <property name="&lt;Control&gt;F7" type="string" value="workspace_7_key"/>
-      <property name="&lt;Control&gt;F8" type="string" value="workspace_8_key"/>
-      <property name="&lt;Control&gt;F9" type="string" value="workspace_9_key"/>
-      <property name="&lt;Shift&gt;&lt;Alt&gt;Page_Down" type="string" value="lower_window_key"/>
-      <property name="&lt;Shift&gt;&lt;Alt&gt;Page_Up" type="string" value="raise_window_key"/>
-      <property name="&lt;Super&gt;Tab" type="string" value="switch_window_key"/>
-      <property name="Down" type="string" value="down_key"/>
-      <property name="Escape" type="string" value="cancel_key"/>
-      <property name="Left" type="string" value="left_key"/>
-      <property name="Right" type="string" value="right_key"/>
-      <property name="Up" type="string" value="up_key"/>
-      <property name="override" type="bool" value="true"/>
-      <property name="&lt;Super&gt;Left" type="string" value="tile_left_key"/>
-      <property name="&lt;Super&gt;Right" type="string" value="tile_right_key"/>
-      <property name="&lt;Super&gt;Up" type="string" value="maximize_window_key"/>
-    </property>
-  </property>
-  <property name="providers" type="array">
-    <value type="string" value="xfwm4"/>
-    <value type="string" value="commands"/>
-  </property>
-</channel>"""
-	file_write('/root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml', contents)
-
-	# power options
-	contents = """<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xfce4-power-manager" version="1.0">
-  <property name="xfce4-power-manager" type="empty">
-    <property name="power-button-action" type="empty"/>
-    <property name="dpms-enabled" type="bool" value="true"/>
-    <property name="blank-on-ac" type="int" value="0"/>
-    <property name="dpms-on-ac-sleep" type="uint" value="0"/>
-    <property name="dpms-on-ac-off" type="uint" value="0"/>
-  </property>
-</channel>"""
-	file_write('/root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml', contents)
-	run_command('nohup xfce4-power-manager')
-
-	# set desktop files
-	run_command('ln -sf /usr/share/applications/exo-terminal-emulator.desktop ~/.config/xfce4/panel/launcher-2/exo-terminal-emulator.desktop')
-	run_command('ln -sf /usr/share/applications/kali-wireshark.desktop        ~/.config/xfce4/panel/launcher-4/kali-wireshark.desktop')
-	run_command('ln -sf /usr/share/applications/firefox-esr.desktop           ~/.config/xfce4/panel/launcher-5/firefox-esr.desktop')
-	run_command('ln -sf /usr/share/applications/kali-burpsuite.desktop        ~/.config/xfce4/panel/launcher-6/kali-burpsuite.desktop')
-	run_command('ln -sf /usr/share/applications/kali-msfconsole.desktop       ~/.config/xfce4/panel/launcher-7/kali-msfconsole.desktop')
-	run_command('ln -sf /usr/share/applications/org.gnome.gedit.desktop       ~/.config/xfce4/panel/launcher-8/textedit.desktop')
-	run_command('ln -sf /usr/share/applications/xfce4-appfinder.desktop       ~/.config/xfce4/panel/launcher-9/xfce4-appfinder.desktop')
-
-
-	# panel settings
-	run_command('xfconf-query -n -a -c xfce4-panel -p /panels -t int -s 0')
-	run_command('xfconf-query --create --channel xfce4-panel --property /panels/panel-0/plugin-ids -t int -s 1   -t int -s 2   -t int -s 3   -t int -s 4   -t int -s 5 -t int -s 7   -t int -s 8  -t int -s 9 -t int -s 10  -t int -s 11  -t int -s 13  -t int -s 15  -t int -s 16  -t int -s 17  -t int -s 19  -t int -s 20')
-	run_command('xfconf-query -n -c xfce4-panel -p /panels/panel-0/length -t int -s 100')
-	run_command('xfconf-query -n -c xfce4-panel -p /panels/panel-0/size -t int -s 30')
-	run_command('xfconf-query -n -c xfce4-panel -p /panels/panel-0/position -t string -s "p=6;x=0;y=0"')
-	run_command('xfconf-query -n -c xfce4-panel -p /panels/panel-0/position-locked -t bool -s true')
-	# application menu
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-1 -t string -s applicationsmenu')
-	# terminal   ID: exo-terminal-emulator
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-2 -t string -s launcher')
-	# places
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-3 -t string -s places')
-	# wireshark  ID: kali-wireshark
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-4 -t string -s launcher')
-	# firefox    ID: firefox-esr
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-5 -t string -s launcher')
-	# msf        ID: kali-msfconsole
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-7 -t string -s launcher')
-	# gedit      ID: org.gnome.gedit.desktop
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-8 -t string -s launcher')
-	# search     ID: xfce4-appfinder
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-9 -t string -s launcher')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-10 -t string -s tasklist')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-11 -t string -s separator')
-	# audio
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-13 -t string -s mixer')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-15 -t string -s systray')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-16 -t string -s actions')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-17 -t string -s clock')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-19 -t string -s pager')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-20 -t string -s showdesktop')
-	#--- application menu
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-1/show-tooltips -t bool -s true')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-1/show-button-title -t bool -s false')
-	#--- terminal
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-2/items -t string -s "exo-terminal-emulator.desktop" -a')
-	#--- places
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-3/mount-open-volumes -t bool -s true')
-	#--- wireshark
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-4/items -t string -s "kali-wireshark.desktop" -a')
-	#--- firefox
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-5/items -t string -s "firefox-esr.desktop" -a')
-	#--- metasploit
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-7/items -t string -s "kali-msfconsole.desktop" -a')
-	#--- gedit
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-8/items -t string -s "textedit.desktop" -a')
-	#--- search
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-9/items -t string -s "xfce4-appfinder.desktop" -a')
-	#--- tasklist (& separator - required for padding)
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-10/show-labels -t bool -s true')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-10/show-handle -t bool -s false')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-11/style -t int -s 0')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-11/expand -t bool -s true')
-	#--- systray
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-15/show-frame -t bool -s false')
-	#--- actions
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-16/appearance -t int -s 1')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-16/items -t string -s "+logout-dialog"  -t string -s "-switch-user"  -t string -s "-separator" -t string -s "-logout"  -t string -s "+lock-screen"  -t string -s "+hibernate"  -t string -s "+suspend"  -t string -s "+restart"  -t string -s "+shutdown"  -a')
-	#--- clock
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-17/show-frame -t bool -s false')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-17/mode -t int -s 2')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-17/digital-format -t string -s "%R, %Y-%m-%d"')
-	#--- pager / workspace
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-19/miniature-view -t bool -s true')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-19/rows -t int -s 1')
-	run_command('xfconf-query -n -c xfwm4 -p /general/workspace_count -t int -s 3')
-	#--- Theme options
-	run_command('xfconf-query -n -c xsettings -p /Net/ThemeName -s "axiomd"')
-	run_command('xfconf-query -n -c xsettings -p /Net/IconThemeName -s "Tango"')
-	run_command('xfconf-query -n -c xsettings -p /Gtk/MenuImages -t bool -s true')
-	run_command('xfconf-query -n -c xfce4-panel -p /plugins/plugin-1/button-icon -t string -s "kali-menu"')
-	#--- Window management
-	run_command('xfconf-query -n -c xfwm4 -p /general/snap_to_border -t bool -s true')
-	run_command('xfconf-query -n -c xfwm4 -p /general/snap_to_windows -t bool -s true')
-	run_command('xfconf-query -n -c xfwm4 -p /general/wrap_windows -t bool -s false')
-	run_command('xfconf-query -n -c xfwm4 -p /general/wrap_workspaces -t bool -s false')
-	run_command('xfconf-query -n -c xfwm4 -p /general/click_to_focus -t bool -s false')
-	run_command('xfconf-query -n -c xfwm4 -p /general/click_to_focus -t bool -s true')
-	#--- Hide icons
-	run_command('xfconf-query -n -c xfce4-desktop -p /desktop-icons/file-icons/show-filesystem -t bool -s false')
-	run_command('xfconf-query -n -c xfce4-desktop -p /desktop-icons/file-icons/show-home -t bool -s false')
-	run_command('xfconf-query -n -c xfce4-desktop -p /desktop-icons/file-icons/show-trash -t bool -s false')
-	run_command('xfconf-query -n -c xfce4-desktop -p /desktop-icons/file-icons/show-removable -t bool -s false')
-	#--- Start and exit values
-	run_command('xfconf-query -n -c xfce4-session -p /splash/Engine -t string -s ""')
-	run_command('xfconf-query -n -c xfce4-session -p /shutdown/LockScreen -t bool -s true')
-	run_command('xfconf-query -n -c xfce4-session -p /general/SaveOnExit -t bool -s false')
-	#--- App Finder
-	run_command('xfconf-query -n -c xfce4-appfinder -p /last/pane-position -t int -s 248')
-	run_command('xfconf-query -n -c xfce4-appfinder -p /last/window-height -t int -s 742')
-	run_command('xfconf-query -n -c xfce4-appfinder -p /last/window-width -t int -s 648')
-	#--- Enable compositing
-	run_command('xfconf-query -n -c xfwm4 -p /general/use_compositing -t bool -s true')
-	run_command('xfconf-query -n -c xfwm4 -p /general/frame_opacity -t int -s 100')
-
-	## If its a hidpi monitor, set the proper values
-	if HIDPI_MONITOR:
-		run_command('xfconf-query -n -c xsettings -p /Xft/DPI -t int -s 180')
-		run_command('xfconf-query -n -c xfce4-panel -p /panels/panel-0/size -t int -s 47')
-		run_command('xfconf-query -n -c xfce4-desktop -p /desktop-icons/icon-size -t int -s 90')
-		run_command('xfconf-query -n -c xsettings -p /Gtk/IconSizes -t string -s "gtk-large-toolbar=32,32:gtk-small-toolbar=24,24:gtk-menu=32,32:gtk-dialog=88,88:gtk-button=32,32:gtk-dnd=32,32"')
-		run_command('xfconf-query -n -c xfwm4 -p /general/theme -t string -s "Default-xhdpi"')
-		run_command('xfconf-query -n -c xfwm4 -p /general/title_font -t string -s "Sans Bold 10"')
-
-
-	# remove mail reader from menu
-	file_append_or_replace('/usr/share/applications/exo-mail-reader.desktop', '^NotShowIn=*', 'NotShowIn=XFCE;')
-
-	# set default applications
-	run_command('mkdir -p /root/.local/share/applications')
-	file_backup('/root/.local/share/applications/mimeapps.list')
-	contents = """[Added Associations]
-x-scheme-handler/http=exo-web-browser.desktop
-x-scheme-handler/https=exo-web-browser.desktop
-x-scheme-handler/file=exo-file-manager.desktop
-x-scheme-handler/trash=exo-file-manager.desktop
-"""
-	file_write('/root/.local/share/applications/mimeapps.list', contents)
-	file_backup('/root/.config/xfce4/helpers.rc')
-	file_write('/root/.config/xfce4/helpers.rc', 'FileManager=Thunar')
-
-	# get wallpaper and set it
-	run_command('mkdir -p /usr/share/wallpapers')
-	file_download('https://lh5.googleusercontent.com/-CW1-qRVBiqc/U7ARd2T9LCI/AAAAAAAAAGw/oantfR6owSg/w1920-h1080/vzex.png', '/usr/share/wallpapers/kali_blue_splat.png')
-	run_command('xfconf-query -n -c xfce4-desktop -p /backdrop/screen0/monitor0/image-show -t bool -s true')
-	run_command('xfconf-query -n -c xfce4-desktop -p /backdrop/screen0/monitor0/image-path -t string -s "/usr/share/wallpapers/kali_blue_splat.png"')
-	run_command('xfconf-query -n -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -t string -s "/usr/share/wallpapers/kali_blue_splat.png"')
-	run_command('/usr/bin/dconf write /org/gnome/desktop/screensaver/picture-uri "\'file:///usr/share/wallpapers/kali_blue_splat.png\'"')
-	run_command('/usr/bin/dconf write /org/gnome/desktop/screensaver/picture-uri "\'file:///usr/share/wallpapers/kali_blue_splat.png\'"')
-	run_command('/usr/bin/xfdesktop --reload 2>/dev/null &')
-
-
-	# make default DE
-	run_command('update-alternatives --set x-session-manager /usr/bin/xfce4-session')
-
 
 def install_githubs():
 	projects = [
@@ -1342,6 +1069,7 @@ def install_githubs():
 		'enjoiz/XXEinjector',
 		'SpiderLabs/HostHunter',
 		'smicallef/spiderfoot',
+		'Tib3rius/AutoRecon', 
 	]
 
 	additional_instructions = {
@@ -1359,7 +1087,7 @@ def install_githubs():
 			for instr in additional_instructions[proj]:
 				run_command('cd /opt/{0}-git; {1}'.format(project_name, instr))
 
-
+	
 
 
 if __name__ == '__main__':
