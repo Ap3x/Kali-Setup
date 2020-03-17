@@ -226,12 +226,12 @@ sleep 2s
 	print_success("Done")
 
 
-	## Configure login manager
-	do_action("Configuring login manager")
-	file_backup('/etc/gdm3/daemon.conf')
-	file_replace('/etc/gdm3/daemon.conf', '^.*AutomaticLoginEnable = .*', 'AutomaticLoginEnable = true')
-	file_replace('/etc/gdm3/daemon.conf', '^.*AutomaticLogin = .*', 'AutomaticLogin = root')
-	print_success("Done")
+	### Configure login manager
+	#do_action("Configuring login manager")
+	#file_backup('/etc/gdm3/daemon.conf')
+        #file_replace('/etc/gdm3/daemon.conf', '^.*AutomaticLoginEnable = .*', 'AutomaticLoginEnable = true')
+	#file_replace('/etc/gdm3/daemon.conf', '^.*AutomaticLogin = .*', 'AutomaticLogin = root')
+	#print_success("Done")
 
 
 	## Configure terminal
@@ -521,89 +521,6 @@ alias msfconsole="systemctl start postgresql; msfdb start; msfconsole \"\$@\""
 	run_command('git config --global user.email "{0}"'.format(YOUR_EMAIL))
 	print_success("Done")
 
-	## Setup Firefox
-	do_action("Installing and configuring firefox")
-	run_command("apt -y -qq install unzip curl firefox-esr")
-	print_success("Firefox will spawn for 30 seconds to go through the \"first run\" process")
-	run_command("sleep 2")
-	run_command("timeout 25 firefox")
-	run_command("timeout 15 killall -9 -q -w firefox-esr")
-	config_file = run_command_output("find ~/.mozilla/firefox/*.default*/ -maxdepth 1 -type f -name 'prefs.js' -print -quit").decode("ascii").rstrip()
-	file_append_or_replace(config_file, '^.network.proxy.socks_remote_dns.*', 'user_pref("network.proxy.socks_remote_dns", true);')
-	file_append_or_replace(config_file, '^.browser.safebrowsing.enabled.*', 'user_pref("browser.safebrowsing.enabled", false);')
-	file_append_or_replace(config_file, '^.browser.safebrowsing.malware.enabled.*', 'user_pref("browser.safebrowsing.malware.enabled", false);')
-	file_append_or_replace(config_file, '^.browser.safebrowsing.remoteLookups.enabled.*', 'user_pref("browser.safebrowsing.remoteLookups.enabled", false);')
-	file_append_or_replace(config_file, '^.*browser.startup.page.*', 'user_pref("browser.startup.page", 0);')
-	file_append_or_replace(config_file, '^.*privacy.donottrackheader.enabled.*', 'user_pref("privacy.donottrackheader.enabled", true);')
-	file_append_or_replace(config_file, '^.*browser.showQuitWarning.*', 'user_pref("browser.showQuitWarning", true);')
-	file_append_or_replace(config_file, '^.*extensions.https_everywhere._observatory.popup_shown.*', 'user_pref("extensions.https_everywhere._observatory.popup_shown", true);')
-	file_append_or_replace(config_file, '^.network.security.ports.banned.override', 'user_pref("network.security.ports.banned.override", "1-65455");')
-	run_command("mkdir -p /root/.config/xfce4/")
-	file_append_or_replace('/root/.config/xfce4/helpers.rc', '^WebBrowser=.*', 'WebBrowser=firefox')
-	print_success("Done")
-
-	## Install firefox plugins
-	do_action("Installing firefox plugins")
-	plugin_folder = run_command_output("find ~/.mozilla/firefox/*.default*/ -maxdepth 0 -mindepth 0 -type d -name '*.default*' -print -quit").decode("ascii").rstrip() + "/extensions"
-	if plugin_folder == "/extensions":
-		print_error("Could not find firefox profile folder")
-	else:
-		run_command('mkdir -p {0}/'.format(plugin_folder))
-		print_success("Downloading plugins")
-		# SQLite Manager
-		file_download("https://addons.mozilla.org/firefox/downloads/file/1024161/sqlite_manager-0.2.0-an+fx.xpi?src=search", "{0}/SQLiteManager@mrinalkant.blogspot.com.xpi".format(plugin_folder))
-		# Cookies Manager+
-		file_download("https://addons.mozilla.org/firefox/downloads/file/802399/cookie_manager-1.4-an+fx.xpi?src=search", "{0}/cookie-manager@robwu.nl.xpi".format(plugin_folder))
-		# FoxyProxy Basic
-		file_download("https://addons.mozilla.org/firefox/downloads/latest/15023/addon-15023-latest.xpi?src=dp-btn-primary", "{0}/foxyproxy-basic@eric.h.jung.xpi".format(plugin_folder))
-		# User Agent Overrider
-		file_download("https://addons.mozilla.org/firefox/downloads/file/969712/user_agent_switcher-0.2.4-an+fx.xpi?src=search", "{0}/useragentoverrider@qixinglu.com.xpi".format(plugin_folder))
-		# Live HTTP Headers
-		file_download("https://addons.mozilla.org/firefox/downloads/file/1044210/http_header_live-0.6.4-an+fx-linux.xpi?src=search", "{0}/{{ed102056-8b4f-43a9-99cd-6d1b25abe87e}}.xpi".format(plugin_folder))
-		# HackBar
-		file_download("https://addons.mozilla.org/firefox/downloads/file/1029136/hackbar-1.1.12-an+fx.xpi?src=search", "{0}/{{4c98c9c7-fc13-4622-b08a-a18923469c1c}}.xpi".format(plugin_folder))
-		# uBlock
-		file_download("https://addons.mozilla.org/firefox/downloads/file/1086463/ublock_origin-1.17.0-an+fx.xpi?src=search", "{0}/uBlock0@raymondhill.net.xpi".format(plugin_folder))
-
-		## install plugins
-		print_success("Installing the plugins")
-		run_command('export ffpath="$(find ~/.mozilla/firefox/*.default*/ -maxdepth 0 -mindepth 0 -type d -name \'*.default*\' -print -quit)/extensions"; for FILE in $(find "${ffpath}" -maxdepth 1 -type f -name \'*.xpi\'); do d="$(basename "${FILE}" .xpi)"; mkdir -p "${ffpath}/${d}/"; unzip -q -o -d "${ffpath}/${d}/" "${FILE}";rm -f "${FILE}"; done', True, True) 
-		run_command('timeout 15 firefox')
-		run_command('timeout 5 killall -9 -q -w firefox-esr')
-		run_command('sleep 3')
-
-		## force enable
-		print_success("Enabling the plugins")
-		file = run_command_output("find ~/.mozilla/firefox/*.default*/ -maxdepth 1 -type f -name 'extensions.json' -print -quit").decode("ascii").rstrip()
-		file_replace(file, '"active":false,', '"active":true,')
-		file_replace(file, '"userDisabled":true,', '"userDisabled:false,')
-		#file = run_command_output("find ~/.mozilla/firefox/*.default*/ -maxdepth 1 -type f -name 'extension-settings.json' -print -quit").decode("ascii").rstrip()
-		#file_replace(file, '"active":false,', '"active":true,')
-		#file_replace(file, '"userDisabled":true,', '"userDisabled:false,')
-
-		## making sure plugins are configured
-		run_command('timeout 15 firefox')
-		run_command('timeout 5 killall -9 -q -w firefox-esr')
-		run_command('sleep 3')
-		run_command('timeout 15 firefox')
-		run_command('timeout 5 killall -9 -q -w firefox-esr')
-		run_command('sleep 3')
-
-		print_success("Plugins enabled and installed! Clearing session")
-		run_command("find /root/.mozilla/firefox/*.default*/ -maxdepth 1 -type f -name 'sessionstore.*' -delete")
-
-		print_success("Configuring plugins")
-		file = run_command_output("find ~/.mozilla/firefox/*.default*/ -maxdepth 1 -type f -name 'foxyproxy.xml' -print -quit").decode("ascii").rstrip()
-		if file_exists(file):
-			contents = """
-<?xml version="1.0" encoding="UTF-8"?>
-<foxyproxy mode="disabled" selectedTabIndex="0" toolbaricon="true" toolsMenu="true" contextMenu="false" advancedMenus="false" previousMode="disabled" resetIconColors="true" useStatusBarPrefix="true" excludePatternsFromCycling="false" excludeDisabledFromCycling="false" ignoreProxyScheme="false" apiDisabled="false" proxyForVersionCheck=""><random includeDirect="false" includeDisabled="false"/><statusbar icon="true" text="false" left="options" middle="cycle" right="contextmenu" width="0"/><toolbar left="options" middle="cycle" right="contextmenu"/><logg enabled="false" maxSize="500" noURLs="false" header="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
-&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot; &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt;
-&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt;&lt;head&gt;&lt;title&gt;&lt;/title&gt;&lt;link rel=&quot;icon&quot; href=&quot;http://getfoxyproxy.org/favicon.ico&quot;/&gt;&lt;link rel=&quot;shortcut icon&quot; href=&quot;http://getfoxyproxy.org/favicon.ico&quot;/&gt;&lt;link rel=&quot;stylesheet&quot; href=&quot;http://getfoxyproxy.org/styles/log.css&quot; type=&quot;text/css&quot;/&gt;&lt;/head&gt;&lt;body&gt;&lt;table class=&quot;log-table&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;td class=&quot;heading&quot;&gt;${timestamp-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${url-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${proxy-name-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${proxy-notes-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${pattern-name-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${pattern-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${pattern-case-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${pattern-type-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${pattern-color-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${pac-result-heading}&lt;/td&gt;&lt;td class=&quot;heading&quot;&gt;${error-msg-heading}&lt;/td&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tfoot&gt;&lt;tr&gt;&lt;td/&gt;&lt;/tr&gt;&lt;/tfoot&gt;&lt;tbody&gt;" row="&lt;tr&gt;&lt;td class=&quot;timestamp&quot;&gt;${timestamp}&lt;/td&gt;&lt;td class=&quot;url&quot;&gt;&lt;a href=&quot;${url}&quot;&gt;${url}&lt;/a&gt;&lt;/td&gt;&lt;td class=&quot;proxy-name&quot;&gt;${proxy-name}&lt;/td&gt;&lt;td class=&quot;proxy-notes&quot;&gt;${proxy-notes}&lt;/td&gt;&lt;td class=&quot;pattern-name&quot;&gt;${pattern-name}&lt;/td&gt;&lt;td class=&quot;pattern&quot;&gt;${pattern}&lt;/td&gt;&lt;td class=&quot;pattern-case&quot;&gt;${pattern-case}&lt;/td&gt;&lt;td class=&quot;pattern-type&quot;&gt;${pattern-type}&lt;/td&gt;&lt;td class=&quot;pattern-color&quot;&gt;${pattern-color}&lt;/td&gt;&lt;td class=&quot;pac-result&quot;&gt;${pac-result}&lt;/td&gt;&lt;td class=&quot;error-msg&quot;&gt;${error-msg}&lt;/td&gt;&lt;/tr&gt;" footer="&lt;/tbody&gt;&lt;/table&gt;&lt;/body&gt;&lt;/html&gt;"/><warnings/><autoadd enabled="false" temp="false" reload="true" notify="true" notifyWhenCanceled="true" prompt="true"><match enabled="true" name="Dynamic AutoAdd Pattern" pattern="*://${3}${6}/*" isRegEx="false" isBlackList="false" isMultiLine="false" caseSensitive="false" fromSubscription="false"/><match enabled="true" name="" pattern="*You are not authorized to view this page*" isRegEx="false" isBlackList="false" isMultiLine="true" caseSensitive="false" fromSubscription="false"/></autoadd><quickadd enabled="false" temp="false" reload="true" notify="true" notifyWhenCanceled="true" prompt="true"><match enabled="true" name="Dynamic QuickAdd Pattern" pattern="*://${3}${6}/*" isRegEx="false" isBlackList="false" isMultiLine="false" caseSensitive="false" fromSubscription="false"/></quickadd><defaultPrefs origPrefetch="null"/><proxies><proxy name="localhost:8080" id="1145138293" notes="e.g. Burp, w3af" fromSubscription="false" enabled="true" mode="manual" selectedTabIndex="0" lastresort="false" animatedIcons="true" includeInCycle="false" color="#07753E" proxyDNS="true" noInternalIPs="false" autoconfMode="pac" clearCacheBeforeUse="true" disableCache="true" clearCookiesBeforeUse="false" rejectCookies="false"><matches/><autoconf url="" loadNotification="true" errorNotification="true" autoReload="false" reloadFreqMins="60" disableOnBadPAC="true"/><autoconf url="http://wpad/wpad.dat" loadNotification="true" errorNotification="true" autoReload="false" reloadFreqMins="60" disableOnBadPAC="true"/><manualconf host="127.0.0.1" port="8080" socksversion="5" isSocks="false" username="" password="" domain=""/></proxy><proxy name="localhost:8081 (socket5)" id="212586674" notes="e.g. SSH" fromSubscription="false" enabled="true" mode="manual" selectedTabIndex="0" lastresort="false" animatedIcons="true" includeInCycle="false" color="#917504" proxyDNS="true" noInternalIPs="false" autoconfMode="pac" clearCacheBeforeUse="true" disableCache="true" clearCookiesBeforeUse="false" rejectCookies="false"><matches/><autoconf url="" loadNotification="true" errorNotification="true" autoReload="false" reloadFreqMins="60" disableOnBadPAC="true"/><autoconf url="http://wpad/wpad.dat" loadNotification="true" errorNotification="true" autoReload="false" reloadFreqMins="60" disableOnBadPAC="true"/><manualconf host="127.0.0.1" port="8081" socksversion="5" isSocks="true" username="" password="" domain=""/></proxy><proxy name="No Caching" id="3884644610" notes="" fromSubscription="false" enabled="true" mode="system" selectedTabIndex="0" lastresort="false" animatedIcons="true" includeInCycle="false" color="#990DA6" proxyDNS="true" noInternalIPs="false" autoconfMode="pac" clearCacheBeforeUse="true" disableCache="true" clearCookiesBeforeUse="false" rejectCookies="false"><matches/><autoconf url="" loadNotification="true" errorNotification="true" autoReload="false" reloadFreqMins="60" disableOnBadPAC="true"/><autoconf url="http://wpad/wpad.dat" loadNotification="true" errorNotification="true" autoReload="false" reloadFreqMins="60" disableOnBadPAC="true"/><manualconf host="" port="" socksversion="5" isSocks="false" username="" password="" domain=""/></proxy><proxy name="Default" id="3377581719" notes="" fromSubscription="false" enabled="true" mode="direct" selectedTabIndex="0" lastresort="true" animatedIcons="false" includeInCycle="true" color="#0055E5" proxyDNS="true" noInternalIPs="false" autoconfMode="pac" clearCacheBeforeUse="false" disableCache="false" clearCookiesBeforeUse="false" rejectCookies="false"><matches><match enabled="true" name="All" pattern="*" isRegEx="false" isBlackList="false" isMultiLine="false" caseSensitive="false" fromSubscription="false"/></matches><autoconf url="" loadNotification="true" errorNotification="true" autoReload="false" reloadFreqMins="60" disableOnBadPAC="true"/><autoconf url="http://wpad/wpad.dat" loadNotification="true" errorNotification="true" autoReload="false" reloadFreqMins="60" disableOnBadPAC="true"/><manualconf host="" port="" socksversion="5" isSocks="false" username="" password=""/></proxy></proxies></foxyproxy>
-"""
-			file_write(file, contents)
-			print_success("Done")
-
 
 	## Install metasploit
 	do_action("Installing and configuring metasploit")
@@ -871,6 +788,10 @@ setg LPORT 443
 	run_command('wget --no-check-certificate --no-cookies "https://ghidra-sre.org/{0}" -O /opt/ghidra.zip'.format(ghidra_link))
 	run_command('cd /opt/; unzip ghidra*.zip')
 	run_command('rm /opt/ghidra*.zip')
+
+	## Install Dependency for AutoRecon
+	do_action('Install Python TOML for AutoRecon')
+	run_command('apt install python3-toml')
 
 	## Install np (gnmap parser)
 	do_action("Installing np")
